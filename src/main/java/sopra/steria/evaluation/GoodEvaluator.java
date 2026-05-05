@@ -34,10 +34,12 @@ public class GoodEvaluator implements Evaluator {
             // Black squares are used as-is.
             int mirroredIndex = isWhite ? (sq ^ 56) : sq;
 
-            score = (isWhite
+            int materialValue = Helpers.pieceValue(type);
+            score += (isWhite
                     ? PstTables.PST[type][mirroredIndex]
-                    : -PstTables.PST[type][mirroredIndex]) // PST
-                    * Helpers.pieceValue(type); // Material Value
+                    : -PstTables.PST[type][mirroredIndex])
+                    * materialValue;
+            score += materialValue;
         }
 
         // mobility bonus
