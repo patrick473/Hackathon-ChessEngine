@@ -103,10 +103,10 @@ public class Search {
         // Null Move Pruning
         if (depth >= 3 && !board.isInCheck() && Helpers.hasNonPawnMaterial(board)) {
             board.makeNullMove();
-            int nullScore = -negamax(board, depth - 1 - 2, -beta, -beta + 1, ply + 1);
+            int nullScore = -negamax(board, depth - 3, -beta, -beta + 1, ply + 1);
             board.undoNullMove();
 
-            if (nullScore >= beta) return beta;
+            if (nullScore >= beta) return nullScore;
         }
 
         int bestScore = -INF;
