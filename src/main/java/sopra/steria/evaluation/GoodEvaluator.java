@@ -22,9 +22,9 @@ public class GoodEvaluator implements Evaluator {
         int score = 0;
         int[] pieces = board.getPieceBoards(); // length 64, one entry per square
 
-        for (int sq= 0; sq < 64; sq++) {
+        for (int sq = 0; sq < 64; sq++) {
             int piece = pieces[sq];
-            if(piece == BPiece.none) continue;
+            if (piece == BPiece.none) continue;
 
             boolean isWhite = BPiece.isWhite(piece);
             int type = BPiece.getPieceType(piece);
@@ -34,10 +34,10 @@ public class GoodEvaluator implements Evaluator {
             // Black squares are used as-is.
             int mirroredIndex = isWhite ? (sq ^ 56) : sq;
 
-            score += isWhite
+            score = (isWhite
                     ? PstTables.PST[type][mirroredIndex]
-                    : -PstTables.PST[type][mirroredIndex]; // PST
-            score += Helpers.pieceValue(type); // Material Value
+                    : -PstTables.PST[type][mirroredIndex]) // PST
+                    * Helpers.pieceValue(type); // Material Value
         }
 
         // mobility bonus
