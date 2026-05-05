@@ -3,6 +3,7 @@ package sopra.steria.ordering;
 import knight.clubbing.core.BBoard;
 import knight.clubbing.core.BMove;
 import knight.clubbing.core.BPiece;
+import sopra.steria.search.TranspositionTable;
 
 import static sopra.steria.helpers.Helpers.pieceValue;
 import static sopra.steria.helpers.Helpers.promotionPriority;
@@ -11,22 +12,26 @@ import static sopra.steria.helpers.Helpers.scoreCapture;
 
 /**
  * ordering process:
- * 1. promotions
- * 2. mvv lva
- * 3. killer moves
- * 4. quiet moves
+ * 1. tt move
+ * 2. promotions
+ * 3. mvv lva
+ * 4. killer moves
+ * 5. quiet moves
  */
 public class GoodOrderer implements MoveOrderer {
 
     @Override
-    public void orderMoves(BMove[] moves, BBoard board, BMove[][] killers, int ply) {
+    public void orderMoves(BMove[] moves, BBoard board, BMove[][] killers, int ply, int ttMove) {
         int[] scores = new int[moves.length];
 
         for (int i = 0; i < moves.length; i++) {
             scores[i] = score(moves[i], board);
 
-
-            if (killers != null && ply >= 0) {
+            // TT move is searched first — highest possible priority
+            if (ttMove != TranspositionTable.NO_MOVE
+                    && TranspositionTable.encode(moves[i]) == ttMove) {
+                scores[i] += 30_000;
+            } else if (killers != null && ply >= 0) {
                 if (moves[i].equals(killers[ply][0])) {
                     scores[i] += 10000;
                 } else if (moves[i].equals(killers[ply][1])) {

@@ -8,7 +8,7 @@ import knight.clubbing.core.BPiece;
 public class BadMoveOrderer implements MoveOrderer {
 
     @Override
-    public void orderMoves(BMove[] moves, BBoard board, BMove[][] killers, int ply) {
+    public void orderMoves(BMove[] moves, BBoard board, BMove[][] killers, int ply, int ttMove) {
         int[] scores = new int[moves.length];
 
         for (int i = 0; i < moves.length; i++) {

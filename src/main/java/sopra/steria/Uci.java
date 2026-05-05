@@ -10,6 +10,7 @@ import sopra.steria.ordering.GoodOrderer;
 import sopra.steria.search.Search;
 import sopra.steria.search.SearchResult;
 import sopra.steria.search.SearchSetting;
+import sopra.steria.search.TranspositionTable;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -150,6 +151,7 @@ public class Uci {
 
     protected void handleGo(String line) {
         ensureEngineInitialized();
+        if (search == null) search = new Search();
         int wtime = -1, btime = -1, winc = 0, binc = 0, depthInput = -1;
         boolean whiteToMove = board.isWhiteToMove();
 
@@ -173,7 +175,6 @@ public class Uci {
                     break;
             }
         }
-        search = new Search();
 
         int time = whiteToMove ? wtime : btime;
         int inc = whiteToMove ? winc : binc;
@@ -214,7 +215,7 @@ public class Uci {
                     BMove[] someMoves = new MoveGenerator(board).generateMoves(false);
                     if (someMoves.length > 0) {
                         GoodOrderer goodMoveOrderer = new GoodOrderer();
-                        goodMoveOrderer.orderMoves(someMoves, board, null, 0);
+                        goodMoveOrderer.orderMoves(someMoves, board, null, 0, TranspositionTable.NO_MOVE);
                         sendCommand("bestmove " + someMoves[0].getUci());
                     } else {
                         sendCommand("bestmove 0000");

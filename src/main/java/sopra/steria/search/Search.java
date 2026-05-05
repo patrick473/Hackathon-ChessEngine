@@ -10,6 +10,7 @@ import sopra.steria.ordering.GoodOrderer;
 
 import static sopra.steria.EngineConst.INF;
 import static sopra.steria.EngineConst.MATE_SCORE;
+import static sopra.steria.search.TranspositionTable.*;
 
 public class Search {
 
@@ -21,21 +22,24 @@ public class Search {
     private final Evaluator evaluator;
     private final MoveOrderer moveOrderer;
     private BMove[][] killers;
+    private final TranspositionTable tt;
 
     public Search() {
         this.evaluator = new GoodEvaluator();
         this.moveOrderer = new GoodOrderer();
         this.killers = new BMove[32][2];
+        this.tt = new TranspositionTable();
     }
 
     public SearchResult bestMove(BBoard board, SearchSetting setting) {
         this.startTime = System.currentTimeMillis();
         this.setting = setting;
         this.stop = false;
+        this.killers = new BMove[32][2]; // reset killers each search
+        tt.clear();
 
         SearchResult bestResult = new SearchResult();
         bestResult.setScore(-INF);
-
 
         for (int depth = 1; depth <= setting.maxDepth(); depth++) {
             try {
@@ -52,7 +56,6 @@ public class Search {
             } catch (SearchInterruptedException e) {
                 break;
             }
-
         }
 
         bestResult.setTimeTakenMillis(getTimeTakenMillis());
@@ -67,7 +70,16 @@ public class Search {
         int beta = INF;
         this.nodes = 0;
 
+        long rootHash = board.getState().getZobristKey();
         BMove[] moves = new MoveGenerator(board).generateMoves(false);
+
+        // Use TT move from previous iteration for root ordering
+        TranspositionTable.TTEntry rootEntry = tt.probe(rootHash);
+        int ttMove = rootEntry != null ? rootEntry.bestMove : NO_MOVE;
+        moveOrderer.orderMoves(moves, board, killers, 0, ttMove);
+
+        int originalAlpha = alpha;
+        int bestMovePacked = NO_MOVE;
 
         for (BMove move : moves) {
             checkStop();
@@ -79,10 +91,18 @@ public class Search {
             if (score > bestResult.getScore()) {
                 bestResult.setScore(score);
                 bestResult.setBestMove(move.getUci());
+                bestMovePacked = encode(move);
             }
 
             alpha = Math.max(alpha, score);
         }
+
+        // Store the root entry so the next ID iteration probes the right move first
+        byte flag;
+        if      (bestResult.getScore() <= originalAlpha) flag = UPPER_BOUND;
+        else if (bestResult.getScore() >= beta)          flag = LOWER_BOUND;
+        else                                             flag = EXACT;
+        tt.store(rootHash, depth, scoreToTT(bestResult.getScore(), 0), flag, bestMovePacked);
 
         bestResult.setNodesSearched(this.nodes);
         return bestResult;
@@ -96,11 +116,28 @@ public class Search {
 
         if (depth <= 0) return quiescence(board, alpha, beta, ply);
 
+        // --- Transposition table probe ---
+        long hash = board.getState().getZobristKey();
+        TranspositionTable.TTEntry entry = tt.probe(hash);
+        int ttMove = NO_MOVE;
+
+        if (entry != null) {
+            ttMove = entry.bestMove;
+            if (entry.depth >= depth) {
+                int ttScore = scoreFromTT(entry.score, ply);
+                if (entry.flag == EXACT) return ttScore;
+                if (entry.flag == LOWER_BOUND) alpha = Math.max(alpha, ttScore);
+                if (entry.flag == UPPER_BOUND) beta  = Math.min(beta,  ttScore);
+                if (alpha >= beta) return ttScore;
+            }
+        }
+
+        int originalAlpha = alpha;
         int bestScore = -INF;
+        int bestMovePacked = NO_MOVE;
 
         BMove[] nextMoves = new MoveGenerator(board).generateMoves(false);
-
-        moveOrderer.orderMoves(nextMoves, board, killers, ply);
+        moveOrderer.orderMoves(nextMoves, board, killers, ply, ttMove);
 
         if (nextMoves.length == 0) {
             if (board.isInCheck())
@@ -118,7 +155,10 @@ public class Search {
             int score = -negamax(board, depth - 1, -beta, -alpha, ply + 1);
             board.undoMove(move, true);
 
-            bestScore = Math.max(bestScore, score);
+            if (score > bestScore) {
+                bestScore = score;
+                bestMovePacked = encode(move);
+            }
             alpha = Math.max(alpha, score);
 
             if (alpha >= beta) {
@@ -130,6 +170,14 @@ public class Search {
             }
         }
 
+        // --- Transposition table store ---
+        byte flag;
+        if      (bestScore <= originalAlpha) flag = UPPER_BOUND;
+        else if (bestScore >= beta)          flag = LOWER_BOUND;
+        else                                 flag = EXACT;
+
+        tt.store(hash, depth, scoreToTT(bestScore, ply), flag, bestMovePacked);
+
         return bestScore;
     }
 
@@ -140,20 +188,14 @@ public class Search {
      * Quiescence search — extends the search beyond the horizon by continuing
      * to search captures (and all moves when in check) until the position is "quiet".
      * This avoids mis-evaluating positions with hanging pieces.
-     *
-     * <p>Key behaviours:
-     * <ul>
-     *   <li><b>Stand-pat:</b> the side to move can always choose not to capture,
-     *       so the static eval is a lower bound on the true score.</li>
-     *   <li><b>Delta pruning:</b> if even capturing a queen cannot raise alpha, skip.</li>
-     *   <li><b>Check handling:</b> when in check, all evasions are searched (not just
-     *       captures) to avoid missing forced mates.</li>
-     * </ul>
      */
     private int quiescence(BBoard board, int alpha, int beta, int ply) {
         nodes++;
 
         if (isNthNode(1023)) checkStop();
+
+        // Hard limit to prevent explosion in perpetual-check lines
+        if (ply >= 64) return evaluator.evaluate(board);
 
         boolean inCheck = board.isInCheck();
 
@@ -171,7 +213,7 @@ public class Search {
         if (inCheck && moves.length == 0) return -MATE_SCORE + ply; // checkmate
 
         moveOrderer.orderMoves(moves, board, capturesOnly ? null : killers,
-                capturesOnly ? 0 : Math.min(ply, killers.length - 1));
+                capturesOnly ? 0 : Math.min(ply, killers.length - 1), NO_MOVE);
 
         // When in check there is no stand-pat baseline, so start from -INF
         int bestScore = inCheck ? -INF : alpha;
@@ -181,9 +223,11 @@ public class Search {
             int score = -quiescence(board, -beta, -alpha, ply + 1);
             board.undoMove(move, true);
 
-            if (score > bestScore) bestScore = score;
-            if (score >= beta) return beta;
-            if (score > alpha) alpha = score;
+            if (score > bestScore) {
+                bestScore = score;
+                if (score > alpha) alpha = score;
+            }
+            if (bestScore >= beta) return bestScore;
         }
 
         return bestScore;
@@ -214,4 +258,3 @@ public class Search {
         }
     }
 }
-
