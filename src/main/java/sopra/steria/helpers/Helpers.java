@@ -1,5 +1,6 @@
 package sopra.steria.helpers;
 
+import knight.clubbing.core.BBoard;
 import knight.clubbing.core.BMove;
 import knight.clubbing.core.BPiece;
 
@@ -35,5 +36,20 @@ public class Helpers {
             case BPiece.bishop -> 100;
             default -> 0;
         };
+    }
+
+    public static boolean hasNonPawnMaterial(final BBoard board) {
+        int colorIndex = board.moveColorIndex();
+        long colorBitboard = board.getColorBitboard(colorIndex);
+
+        // Check for knights, bishops, rooks, or queens
+        for (int pieceType = BPiece.knight; pieceType <= BPiece.queen; pieceType++) {
+            int piece = BPiece.makePiece(pieceType, board.moveColor());
+            if ((board.getBitboard(piece) & colorBitboard) != 0L) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
