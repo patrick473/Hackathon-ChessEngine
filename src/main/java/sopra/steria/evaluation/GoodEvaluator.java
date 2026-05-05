@@ -1,21 +1,10 @@
 package sopra.steria.evaluation;
 
 import knight.clubbing.core.BBoard;
-import knight.clubbing.core.BMove;
 import knight.clubbing.core.BPiece;
-import knight.clubbing.movegen.MoveGenerator;
 import sopra.steria.helpers.Helpers;
 
 public class GoodEvaluator implements Evaluator {
-    private static final int PAWN_VALUE   = 100;
-    private static final int KNIGHT_VALUE = 320;
-    private static final int BISHOP_VALUE = 330;
-    private static final int ROOK_VALUE   = 500;
-    private static final int QUEEN_VALUE  = 900;
-    private static final int KING_VALUE   = 20000;
-
-    // Mobility scoring (in centipawns per move)
-    private static final int MOBILITY_WEIGHT = 1; // +1cp per extra move
 
     @Override
     public int evaluate(BBoard board) {
