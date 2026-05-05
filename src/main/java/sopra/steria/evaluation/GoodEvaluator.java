@@ -34,16 +34,9 @@ public class GoodEvaluator implements Evaluator {
             // Black squares are used as-is.
             int mirroredIndex = isWhite ? (sq ^ 56) : sq;
 
-            int bonus = switch (type) {
-                case BPiece.pawn   -> PAWN_VALUE   + PstTables.PAWN[mirroredIndex];
-                case BPiece.knight -> KNIGHT_VALUE + PstTables.KNIGHT[mirroredIndex];
-                case BPiece.bishop -> BISHOP_VALUE + PstTables.BISHOP[mirroredIndex];
-                case BPiece.rook   -> ROOK_VALUE   + PstTables.ROOK[mirroredIndex];
-                case BPiece.queen  -> QUEEN_VALUE  + PstTables.QUEEN[mirroredIndex];
-                case BPiece.king   -> KING_VALUE   + PstTables.KING[mirroredIndex];
-                default -> 0;
-            };
-            score += isWhite ? bonus : -bonus; // PST
+            score += isWhite
+                    ? PstTables.PST[type][mirroredIndex]
+                    : -PstTables.PST[type][mirroredIndex]; // PST
             score += Helpers.pieceValue(type); // Material Value
         }
 
